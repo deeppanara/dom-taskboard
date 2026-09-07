@@ -53,13 +53,11 @@ const PRIORITY_CONFIG: Record<
   },
 };
 
-const DEFAULT_SECTIONS = ["inbox", "work", "personal", "shopping"];
-
 export default function TodoList() {
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<"all" | "active" | "today" | "completed">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isComposerExpanded, setIsComposerExpanded] = useState(false);
 
@@ -68,12 +66,13 @@ export default function TodoList() {
   const [newDescription, setNewDescription] = useState("");
   const [newPriority, setNewPriority] = useState("low");
   const [newDueDate, setNewDueDate] = useState("");
-  const [newSection, setNewSection] = useState("inbox");
 
   // Inline editing state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [editingDesc, setEditingDesc] = useState("");
+  const [editingPriority, setEditingPriority] = useState("low");
+  const [editingDueDate, setEditingDueDate] = useState("");
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -106,7 +105,6 @@ export default function TodoList() {
       description: newDescription.trim() || undefined,
       priority: newPriority,
       dueDate: newDueDate || undefined,
-      section: activeTab !== "all" && activeTab !== "today" && activeTab !== "upcoming" && activeTab !== "completed" ? activeTab : newSection,
     };
 
     try {
@@ -115,6 +113,7 @@ export default function TodoList() {
       setNewTitle("");
       setNewDescription("");
       setNewDueDate("");
+      setNewPriority("low");
       inputRef.current?.focus();
     } catch {
       // Local fallback
@@ -125,7 +124,6 @@ export default function TodoList() {
         completed: false,
         priority: reqData.priority,
         dueDate: reqData.dueDate,
-        section: reqData.section,
         position: 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -136,6 +134,7 @@ export default function TodoList() {
       setNewTitle("");
       setNewDescription("");
       setNewDueDate("");
+      setNewPriority("low");
     }
   };
 
@@ -179,6 +178,8 @@ export default function TodoList() {
     setEditingId(todo.id);
     setEditingTitle(todo.title);
     setEditingDesc(todo.description || "");
+    setEditingPriority(todo.priority || "low");
+    setEditingDueDate(todo.dueDate ? todo.dueDate.split("T")[0] : "");
   };
 
   const saveInlineEdit = async (id: string) => {
@@ -190,11 +191,21 @@ export default function TodoList() {
       const updated = await api.todos.update(id, {
         title: editingTitle.trim(),
         description: editingDesc.trim() || undefined,
+        priority: editingPriority,
+        dueDate: editingDueDate || undefined,
       });
       setTodos((prev) => prev.map((t) => (t.id === id ? updated : t)));
     } catch {
       const updated = todos.map((t) =>
-        t.id === id ? { ...t, title: editingTitle.trim(), description: editingDesc.trim() } : t
+        t.id === id
+          ? {
+              ...t,
+              title: editingTitle.trim(),
+              description: editingDesc.trim(),
+              priority: editingPriority,
+              dueDate: editingDueDate || undefined,
+            }
+          : t
       );
       setTodos(updated);
       localStorage.setItem("taskboard_quick_todos", JSON.stringify(updated));
@@ -217,20 +228,18 @@ export default function TodoList() {
 
       // Tab filter
       if (activeTab === "all") return true;
+      if (activeTab === "active") return !t.completed;
       if (activeTab === "completed") return t.completed;
       if (activeTab === "today") {
         if (!t.dueDate) return false;
         return t.dueDate.split("T")[0] === todayStr;
       }
-      if (activeTab === "upcoming") {
-        if (!t.dueDate) return false;
-        return t.dueDate.split("T")[0] > todayStr && !t.completed;
-      }
-      return t.section === activeTab;
+      return true;
     });
   }, [todos, activeTab, searchQuery]);
 
   const totalCount = todos.length;
+  const activeCount = todos.filter((t) => !t.completed).length;
   const completedCount = todos.filter((t) => t.completed).length;
   const completionPercentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
@@ -297,31 +306,23 @@ export default function TodoList() {
         </div>
       </header>
 
-      {/* Main Container with Sidebar Filter Pills & Task List */}
+      {/* Main Container */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
-        <div className="max-w-2xl mx-auto space-y-6">
+        <div className="max-w-2xl mx-auto space-y-5">
           {/* Filter Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
             {[
-              { id: "all", label: "All Tasks" },
-              { id: "inbox", label: "Inbox" },
-              { id: "work", label: "Work" },
-              { id: "personal", label: "Personal" },
-              { id: "today", label: "Today" },
-              { id: "upcoming", label: "Upcoming" },
-              { id: "completed", label: "Completed" },
+              { id: "all" as const, label: "All", count: totalCount },
+              { id: "active" as const, label: "Active", count: activeCount },
+              {
+                id: "today" as const,
+                label: "Today",
+                count: todos.filter(
+                  (t) => t.dueDate?.split("T")[0] === new Date().toISOString().split("T")[0]
+                ).length,
+              },
+              { id: "completed" as const, label: "Completed", count: completedCount },
             ].map((tab) => {
-              const count =
-                tab.id === "all"
-                  ? todos.length
-                  : tab.id === "completed"
-                  ? todos.filter((t) => t.completed).length
-                  : tab.id === "today"
-                  ? todos.filter((t) => t.dueDate?.split("T")[0] === new Date().toISOString().split("T")[0]).length
-                  : tab.id === "upcoming"
-                  ? todos.filter((t) => t.dueDate && t.dueDate.split("T")[0] > new Date().toISOString().split("T")[0] && !t.completed).length
-                  : todos.filter((t) => t.section === tab.id).length;
-
               const isActive = activeTab === tab.id;
 
               return (
@@ -335,7 +336,7 @@ export default function TodoList() {
                   }`}
                 >
                   <span>{tab.label}</span>
-                  {count > 0 && (
+                  {tab.count > 0 && (
                     <span
                       className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
                         isActive
@@ -343,7 +344,7 @@ export default function TodoList() {
                           : "bg-slate-100 dark:bg-slate-800 text-slate-500"
                       }`}
                     >
-                      {count}
+                      {tab.count}
                     </span>
                   )}
                 </button>
@@ -405,19 +406,6 @@ export default function TodoList() {
                       {PRIORITIES.map((p) => (
                         <option key={p} value={p}>
                           {PRIORITY_CONFIG[p]?.label || p}
-                        </option>
-                      ))}
-                    </select>
-
-                    {/* Section Selector */}
-                    <select
-                      value={newSection}
-                      onChange={(e) => setNewSection(e.target.value)}
-                      className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md px-2 py-1 text-slate-700 dark:text-slate-300 focus:outline-none capitalize cursor-pointer"
-                    >
-                      {DEFAULT_SECTIONS.map((sec) => (
-                        <option key={sec} value={sec}>
-                          {sec}
                         </option>
                       ))}
                     </select>
@@ -499,7 +487,9 @@ export default function TodoList() {
                       {isDone ? (
                         <Check className="w-3.5 h-3.5 stroke-[3]" />
                       ) : (
-                        <Check className={`w-3.5 h-3.5 stroke-[3] opacity-0 group-hover:opacity-100 ${priorityConfig.checkColor}`} />
+                        <Check
+                          className={`w-3.5 h-3.5 stroke-[3] opacity-0 group-hover:opacity-100 ${priorityConfig.checkColor}`}
+                        />
                       )}
                     </button>
 
@@ -527,21 +517,40 @@ export default function TodoList() {
                             }}
                             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => saveInlineEdit(todo.id)}
-                              className="px-2.5 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-md font-medium"
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            <input
+                              type="date"
+                              value={editingDueDate}
+                              onChange={(e) => setEditingDueDate(e.target.value)}
+                              className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-0.5 text-slate-700 dark:text-slate-300 focus:outline-none"
+                            />
+                            <select
+                              value={editingPriority}
+                              onChange={(e) => setEditingPriority(e.target.value)}
+                              className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-0.5 text-slate-700 dark:text-slate-300 focus:outline-none capitalize"
                             >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingId(null)}
-                              className="px-2 py-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                            >
-                              Cancel
-                            </button>
+                              {PRIORITIES.map((p) => (
+                                <option key={p} value={p}>
+                                  {PRIORITY_CONFIG[p]?.label || p}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="flex items-center gap-2 ml-auto">
+                              <button
+                                type="button"
+                                onClick={() => saveInlineEdit(todo.id)}
+                                className="px-2.5 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-md font-medium cursor-pointer"
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingId(null)}
+                                className="px-2 py-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ) : (
@@ -566,13 +575,6 @@ export default function TodoList() {
 
                           {/* Badges footer */}
                           <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[11px]">
-                            {/* Section Pill */}
-                            {todo.section && (
-                              <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 capitalize">
-                                #{todo.section}
-                              </span>
-                            )}
-
                             {/* Priority badge */}
                             <span
                               className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium border ${priorityConfig.badgeColor}`}
@@ -601,7 +603,7 @@ export default function TodoList() {
                         <button
                           type="button"
                           onClick={(e) => startInlineEdit(todo, e)}
-                          className="p-1 rounded text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          className="p-1 rounded text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                           title="Edit todo"
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -609,7 +611,7 @@ export default function TodoList() {
                         <button
                           type="button"
                           onClick={(e) => handleDeleteTodo(todo.id, e)}
-                          className="p-1 rounded text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          className="p-1 rounded text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                           title="Delete todo"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
