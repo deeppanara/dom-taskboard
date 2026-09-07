@@ -14,6 +14,7 @@ import {
   X,
   Search,
   CheckCheck,
+  SlidersHorizontal,
 } from "lucide-react";
 import { api, type TodoItem } from "../api/client";
 
@@ -53,12 +54,224 @@ const PRIORITY_CONFIG: Record<
   },
 };
 
+export type TodoGroupBy = "date" | "priority" | "status" | "none";
+
+export interface TodoGroupSection {
+  id: string;
+  title: string;
+  textColor?: string;
+  badgeColor?: string;
+  todos: TodoItem[];
+}
+
+/**
+ * Extensible Grouping Strategies:
+ * Easily add any new grouping dimension here in the future.
+ */
+export const GROUPING_STRATEGIES: Record<
+  TodoGroupBy,
+  { label: string; group: (items: TodoItem[]) => TodoGroupSection[] }
+> = {
+  date: {
+    label: "Group: Due Date",
+    group: (items: TodoItem[]) => {
+      const today = new Date().toISOString().split("T")[0];
+      const tomorrowDate = new Date();
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      const tomorrow = tomorrowDate.toISOString().split("T")[0];
+
+      const overdue: TodoItem[] = [];
+      const dueToday: TodoItem[] = [];
+      const dueTomorrow: TodoItem[] = [];
+      const upcoming: TodoItem[] = [];
+      const noDate: TodoItem[] = [];
+      const completed: TodoItem[] = [];
+
+      for (const item of items) {
+        if (item.completed) {
+          completed.push(item);
+          continue;
+        }
+        if (!item.dueDate) {
+          noDate.push(item);
+        } else {
+          const d = item.dueDate.split("T")[0];
+          if (d < today) overdue.push(item);
+          else if (d === today) dueToday.push(item);
+          else if (d === tomorrow) dueTomorrow.push(item);
+          else upcoming.push(item);
+        }
+      }
+
+      const sections: TodoGroupSection[] = [];
+      if (overdue.length > 0) {
+        sections.push({
+          id: "overdue",
+          title: "Overdue",
+          todos: overdue,
+          textColor: "text-red-600 dark:text-red-400",
+          badgeColor: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+        });
+      }
+      if (dueToday.length > 0) {
+        sections.push({
+          id: "today",
+          title: "Today",
+          todos: dueToday,
+          textColor: "text-amber-600 dark:text-amber-400",
+          badgeColor: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+        });
+      }
+      if (dueTomorrow.length > 0) {
+        sections.push({
+          id: "tomorrow",
+          title: "Tomorrow",
+          todos: dueTomorrow,
+          textColor: "text-blue-600 dark:text-blue-400",
+          badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+        });
+      }
+      if (upcoming.length > 0) {
+        sections.push({
+          id: "upcoming",
+          title: "Upcoming",
+          todos: upcoming,
+          textColor: "text-slate-600 dark:text-slate-400",
+        });
+      }
+      if (noDate.length > 0) {
+        sections.push({
+          id: "nodate",
+          title: "No Due Date",
+          todos: noDate,
+          textColor: "text-slate-500 dark:text-slate-400",
+        });
+      }
+      if (completed.length > 0) {
+        sections.push({
+          id: "completed",
+          title: "Completed",
+          todos: completed,
+          textColor: "text-green-600 dark:text-green-400",
+          badgeColor: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+        });
+      }
+
+      return sections;
+    },
+  },
+  priority: {
+    label: "Group: Priority",
+    group: (items: TodoItem[]) => {
+      const urgent: TodoItem[] = [];
+      const high: TodoItem[] = [];
+      const medium: TodoItem[] = [];
+      const low: TodoItem[] = [];
+      const completed: TodoItem[] = [];
+
+      for (const item of items) {
+        if (item.completed) {
+          completed.push(item);
+          continue;
+        }
+        if (item.priority === "urgent") urgent.push(item);
+        else if (item.priority === "high") high.push(item);
+        else if (item.priority === "medium") medium.push(item);
+        else low.push(item);
+      }
+
+      const sections: TodoGroupSection[] = [];
+      if (urgent.length > 0) {
+        sections.push({
+          id: "urgent",
+          title: "Priority 1 (Urgent)",
+          todos: urgent,
+          textColor: "text-red-600 dark:text-red-400",
+          badgeColor: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+        });
+      }
+      if (high.length > 0) {
+        sections.push({
+          id: "high",
+          title: "Priority 2 (High)",
+          todos: high,
+          textColor: "text-orange-600 dark:text-orange-400",
+          badgeColor: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+        });
+      }
+      if (medium.length > 0) {
+        sections.push({
+          id: "medium",
+          title: "Priority 3 (Medium)",
+          todos: medium,
+          textColor: "text-yellow-600 dark:text-yellow-400",
+          badgeColor: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+        });
+      }
+      if (low.length > 0) {
+        sections.push({
+          id: "low",
+          title: "Priority 4 (Low)",
+          todos: low,
+          textColor: "text-slate-600 dark:text-slate-400",
+        });
+      }
+      if (completed.length > 0) {
+        sections.push({
+          id: "completed",
+          title: "Completed",
+          todos: completed,
+          textColor: "text-green-600 dark:text-green-400",
+          badgeColor: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+        });
+      }
+
+      return sections;
+    },
+  },
+  status: {
+    label: "Group: Status",
+    group: (items: TodoItem[]) => {
+      const active = items.filter((t) => !t.completed);
+      const done = items.filter((t) => t.completed);
+
+      const sections: TodoGroupSection[] = [];
+      if (active.length > 0) {
+        sections.push({
+          id: "active",
+          title: "Active Tasks",
+          todos: active,
+          textColor: "text-blue-600 dark:text-blue-400",
+          badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+        });
+      }
+      if (done.length > 0) {
+        sections.push({
+          id: "done",
+          title: "Completed",
+          todos: done,
+          textColor: "text-green-600 dark:text-green-400",
+          badgeColor: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+        });
+      }
+      return sections;
+    },
+  },
+  none: {
+    label: "No Grouping",
+    group: (items: TodoItem[]) => {
+      return [{ id: "all", title: "", todos: items }];
+    },
+  },
+};
+
 export default function TodoList() {
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState<"all" | "active" | "today" | "completed">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [groupBy, setGroupBy] = useState<TodoGroupBy>("date");
   const [isComposerExpanded, setIsComposerExpanded] = useState(false);
 
   // Composer fields
@@ -81,7 +294,6 @@ export default function TodoList() {
       const data = await api.todos.list();
       setTodos(data || []);
     } catch {
-      // fallback to localStorage if needed
       const cached = localStorage.getItem("taskboard_quick_todos");
       if (cached) {
         setTodos(JSON.parse(cached));
@@ -116,7 +328,6 @@ export default function TodoList() {
       setNewPriority("low");
       inputRef.current?.focus();
     } catch {
-      // Local fallback
       const localItem: TodoItem = {
         id: "local_" + Date.now(),
         title: reqData.title,
@@ -213,12 +424,11 @@ export default function TodoList() {
     setEditingId(null);
   };
 
-  // Filtered todos
+  // Filtered todos according to tab & search
   const filteredTodos = useMemo(() => {
     const todayStr = new Date().toISOString().split("T")[0];
 
     return todos.filter((t) => {
-      // Search
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const mTitle = t.title.toLowerCase().includes(q);
@@ -226,7 +436,6 @@ export default function TodoList() {
         if (!mTitle && !mDesc) return false;
       }
 
-      // Tab filter
       if (activeTab === "all") return true;
       if (activeTab === "active") return !t.completed;
       if (activeTab === "completed") return t.completed;
@@ -237,6 +446,12 @@ export default function TodoList() {
       return true;
     });
   }, [todos, activeTab, searchQuery]);
+
+  // Grouped sections based on chosen strategy
+  const groupedSections = useMemo(() => {
+    const strategy = GROUPING_STRATEGIES[groupBy] || GROUPING_STRATEGIES.date;
+    return strategy.group(filteredTodos);
+  }, [filteredTodos, groupBy]);
 
   const totalCount = todos.length;
   const activeCount = todos.filter((t) => !t.completed).length;
@@ -259,9 +474,9 @@ export default function TodoList() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           {/* Progress Mini Bar */}
-          <div className="hidden sm:flex items-center gap-2 w-32">
+          <div className="hidden sm:flex items-center gap-2 w-32 mr-1">
             <div className="flex-1 h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
               <div
                 className="h-full bg-blue-500 transition-all duration-300 rounded-full"
@@ -292,6 +507,26 @@ export default function TodoList() {
             )}
           </div>
 
+          {/* Group By Selector */}
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 shadow-2xs">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
+            <select
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as TodoGroupBy)}
+              className="bg-transparent text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
+            >
+              {Object.entries(GROUPING_STRATEGIES).map(([key, config]) => (
+                <option
+                  key={key}
+                  value={key}
+                  className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                >
+                  {config.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Clear Completed */}
           {completedCount > 0 && (
             <button
@@ -318,7 +553,9 @@ export default function TodoList() {
                 id: "today" as const,
                 label: "Today",
                 count: todos.filter(
-                  (t) => t.dueDate?.split("T")[0] === new Date().toISOString().split("T")[0]
+                  (t) =>
+                    !t.completed &&
+                    t.dueDate?.split("T")[0] === new Date().toISOString().split("T")[0]
                 ).length,
               },
               { id: "completed" as const, label: "Completed", count: completedCount },
@@ -440,7 +677,7 @@ export default function TodoList() {
             )}
           </form>
 
-          {/* List of Todos */}
+          {/* List of Todos (Grouped or Flat) */}
           {loading ? (
             <div className="flex items-center justify-center h-40 text-slate-400 dark:text-slate-600 text-sm">
               Loading todos…
@@ -460,167 +697,201 @@ export default function TodoList() {
               </div>
             </div>
           ) : (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800/60 shadow-2xs overflow-hidden">
-              {filteredTodos.map((todo) => {
-                const isEditing = editingId === todo.id;
-                const priorityConfig = PRIORITY_CONFIG[todo.priority] || PRIORITY_CONFIG.low;
-                const isDone = todo.completed;
+            <div className="space-y-6">
+              {groupedSections.map((section) => (
+                <div key={section.id} className="space-y-2">
+                  {/* Section Title Header */}
+                  {section.title && (
+                    <div className="flex items-center justify-between px-1">
+                      <div className="flex items-center gap-2">
+                        <h3
+                          className={`text-xs font-semibold uppercase tracking-wider ${
+                            section.textColor || "text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          {section.title}
+                        </h3>
+                        <span
+                          className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-medium ${
+                            section.badgeColor ||
+                            "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                          }`}
+                        >
+                          {section.todos.length}
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
-                return (
-                  <div
-                    key={todo.id}
-                    className={`group flex items-start gap-3 p-3.5 transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-800/30 ${
-                      isDone ? "bg-slate-50/40 dark:bg-slate-950/20" : ""
-                    }`}
-                  >
-                    {/* Circle Checkbox */}
-                    <button
-                      type="button"
-                      onClick={(e) => handleToggleTodo(todo.id, e)}
-                      className={`shrink-0 mt-0.5 w-5 h-5 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
-                        isDone
-                          ? "bg-green-500 border-green-500 text-white shadow-2xs"
-                          : `${priorityConfig.ringColor} bg-transparent`
-                      }`}
-                      title={isDone ? "Mark incomplete" : "Mark complete"}
-                    >
-                      {isDone ? (
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      ) : (
-                        <Check
-                          className={`w-3.5 h-3.5 stroke-[3] opacity-0 group-hover:opacity-100 ${priorityConfig.checkColor}`}
-                        />
-                      )}
-                    </button>
+                  {/* Section Todos Container */}
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800/60 shadow-2xs overflow-hidden">
+                    {section.todos.map((todo) => {
+                      const isEditing = editingId === todo.id;
+                      const priorityConfig =
+                        PRIORITY_CONFIG[todo.priority] || PRIORITY_CONFIG.low;
+                      const isDone = todo.completed;
 
-                    {/* Todo Content / Inline Edit */}
-                    <div className="flex-1 min-w-0">
-                      {isEditing ? (
-                        <div className="space-y-2">
-                          <input
-                            autoFocus
-                            value={editingTitle}
-                            onChange={(e) => setEditingTitle(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") saveInlineEdit(todo.id);
-                              if (e.key === "Escape") setEditingId(null);
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                          <input
-                            value={editingDesc}
-                            onChange={(e) => setEditingDesc(e.target.value)}
-                            placeholder="Add notes…"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") saveInlineEdit(todo.id);
-                              if (e.key === "Escape") setEditingId(null);
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          />
-                          <div className="flex flex-wrap items-center gap-2 pt-1">
-                            <input
-                              type="date"
-                              value={editingDueDate}
-                              onChange={(e) => setEditingDueDate(e.target.value)}
-                              className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-0.5 text-slate-700 dark:text-slate-300 focus:outline-none"
-                            />
-                            <select
-                              value={editingPriority}
-                              onChange={(e) => setEditingPriority(e.target.value)}
-                              className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-0.5 text-slate-700 dark:text-slate-300 focus:outline-none capitalize"
-                            >
-                              {PRIORITIES.map((p) => (
-                                <option key={p} value={p}>
-                                  {PRIORITY_CONFIG[p]?.label || p}
-                                </option>
-                              ))}
-                            </select>
-                            <div className="flex items-center gap-2 ml-auto">
-                              <button
-                                type="button"
-                                onClick={() => saveInlineEdit(todo.id)}
-                                className="px-2.5 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-md font-medium cursor-pointer"
+                      return (
+                        <div
+                          key={todo.id}
+                          className={`group flex items-start gap-3 p-3.5 transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-800/30 ${
+                            isDone ? "bg-slate-50/40 dark:bg-slate-950/20" : ""
+                          }`}
+                        >
+                          {/* Circle Checkbox */}
+                          <button
+                            type="button"
+                            onClick={(e) => handleToggleTodo(todo.id, e)}
+                            className={`shrink-0 mt-0.5 w-5 h-5 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
+                              isDone
+                                ? "bg-green-500 border-green-500 text-white shadow-2xs"
+                                : `${priorityConfig.ringColor} bg-transparent`
+                            }`}
+                            title={isDone ? "Mark incomplete" : "Mark complete"}
+                          >
+                            {isDone ? (
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            ) : (
+                              <Check
+                                className={`w-3.5 h-3.5 stroke-[3] opacity-0 group-hover:opacity-100 ${priorityConfig.checkColor}`}
+                              />
+                            )}
+                          </button>
+
+                          {/* Todo Content / Inline Edit */}
+                          <div className="flex-1 min-w-0">
+                            {isEditing ? (
+                              <div className="space-y-2">
+                                <input
+                                  autoFocus
+                                  value={editingTitle}
+                                  onChange={(e) => setEditingTitle(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") saveInlineEdit(todo.id);
+                                    if (e.key === "Escape") setEditingId(null);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                                <input
+                                  value={editingDesc}
+                                  onChange={(e) => setEditingDesc(e.target.value)}
+                                  placeholder="Add notes…"
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") saveInlineEdit(todo.id);
+                                    if (e.key === "Escape") setEditingId(null);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                                <div className="flex flex-wrap items-center gap-2 pt-1">
+                                  <input
+                                    type="date"
+                                    value={editingDueDate}
+                                    onChange={(e) => setEditingDueDate(e.target.value)}
+                                    className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-0.5 text-slate-700 dark:text-slate-300 focus:outline-none"
+                                  />
+                                  <select
+                                    value={editingPriority}
+                                    onChange={(e) => setEditingPriority(e.target.value)}
+                                    className="text-xs bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded px-2 py-0.5 text-slate-700 dark:text-slate-300 focus:outline-none capitalize"
+                                  >
+                                    {PRIORITIES.map((p) => (
+                                      <option key={p} value={p}>
+                                        {PRIORITY_CONFIG[p]?.label || p}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <div className="flex items-center gap-2 ml-auto">
+                                    <button
+                                      type="button"
+                                      onClick={() => saveInlineEdit(todo.id)}
+                                      className="px-2.5 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-md font-medium cursor-pointer"
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingId(null)}
+                                      className="px-2 py-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div
+                                className="space-y-1"
+                                onDoubleClick={(e) => startInlineEdit(todo, e)}
                               >
-                                Save
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setEditingId(null)}
-                                className="px-2 py-1 text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-1" onDoubleClick={(e) => startInlineEdit(todo, e)}>
-                          <div className="flex items-start justify-between gap-2">
-                            <span
-                              className={`text-sm leading-snug font-medium transition-all ${
-                                isDone
-                                  ? "line-through text-slate-400 dark:text-slate-500"
-                                  : "text-slate-800 dark:text-slate-100"
-                              }`}
-                            >
-                              {todo.title}
-                            </span>
-                          </div>
+                                <div className="flex items-start justify-between gap-2">
+                                  <span
+                                    className={`text-sm leading-snug font-medium transition-all ${
+                                      isDone
+                                        ? "line-through text-slate-400 dark:text-slate-500"
+                                        : "text-slate-800 dark:text-slate-100"
+                                    }`}
+                                  >
+                                    {todo.title}
+                                  </span>
+                                </div>
 
-                          {todo.description && (
-                            <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
-                              {todo.description}
-                            </p>
-                          )}
+                                {todo.description && (
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                                    {todo.description}
+                                  </p>
+                                )}
 
-                          {/* Badges footer */}
-                          <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[11px]">
-                            {/* Priority badge */}
-                            <span
-                              className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium border ${priorityConfig.badgeColor}`}
-                            >
-                              {priorityConfig.label}
-                            </span>
+                                {/* Badges footer */}
+                                <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[11px]">
+                                  {/* Priority badge */}
+                                  <span
+                                    className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium border ${priorityConfig.badgeColor}`}
+                                  >
+                                    {priorityConfig.label}
+                                  </span>
 
-                            {/* Due Date */}
-                            {todo.dueDate && (
-                              <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400 font-medium">
-                                <Calendar className="w-3 h-3" />
-                                {new Date(todo.dueDate).toLocaleDateString(undefined, {
-                                  month: "short",
-                                  day: "numeric",
-                                })}
-                              </span>
+                                  {/* Due Date */}
+                                  {todo.dueDate && (
+                                    <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400 font-medium">
+                                      <Calendar className="w-3 h-3" />
+                                      {new Date(todo.dueDate).toLocaleDateString(undefined, {
+                                        month: "short",
+                                        day: "numeric",
+                                      })}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             )}
                           </div>
-                        </div>
-                      )}
-                    </div>
 
-                    {/* Right Hover Actions */}
-                    {!isEditing && (
-                      <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          type="button"
-                          onClick={(e) => startInlineEdit(todo, e)}
-                          className="p-1 rounded text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                          title="Edit todo"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => handleDeleteTodo(todo.id, e)}
-                          className="p-1 rounded text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                          title="Delete todo"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
+                          {/* Right Hover Actions */}
+                          {!isEditing && (
+                            <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={(e) => startInlineEdit(todo, e)}
+                                className="p-1 rounded text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                title="Edit todo"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteTodo(todo.id, e)}
+                                className="p-1 rounded text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                title="Delete todo"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -628,3 +899,4 @@ export default function TodoList() {
     </div>
   );
 }
+
