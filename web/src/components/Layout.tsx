@@ -15,13 +15,16 @@ import {
 import TerminalPanel from "./TerminalPanel";
 import { useTheme } from "../context/ThemeContext";
 
-const navItems = [
+const mainNavItems = [
   { to: "/inbox", icon: Inbox, label: "Inbox" },
   { to: "/todos", icon: ListTodo, label: "Todo List" },
   { to: "/", icon: LayoutDashboard, label: "Board" },
+  { to: "/tickets", icon: Ticket, label: "Tickets" },
+];
+
+const workspaceNavItems = [
   { to: "/projects", icon: FolderKanban, label: "Projects" },
   { to: "/teams", icon: Users, label: "Teams" },
-  { to: "/tickets", icon: Ticket, label: "Tickets" },
 ];
 
 export default function Layout() {
@@ -38,8 +41,9 @@ export default function Layout() {
           </span>
         </div>
 
-        <nav className="flex-1 py-3 px-2.5 space-y-0.5">
-          {navItems.map((item) => (
+        {/* Top Main Navigation */}
+        <nav className="flex-1 py-3 px-2.5 space-y-0.5 overflow-y-auto">
+          {mainNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -58,7 +62,31 @@ export default function Layout() {
           ))}
         </nav>
 
-        <div className="px-2.5 pb-2 space-y-1">
+        {/* Bottom Workspace Navigation (Projects & Teams) */}
+        <div className="px-2.5 py-2 border-t border-slate-200 dark:border-slate-800 space-y-0.5">
+          <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            Workspace
+          </div>
+          {workspaceNavItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm transition-colors ${
+                  isActive
+                    ? "bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400 font-medium"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`
+              }
+            >
+              <item.icon className="w-4 h-4" />
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
+
+        {/* Action Controls & Utilities */}
+        <div className="px-2.5 pb-2 pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1">
           <button
             onClick={() => setTerminalOpen((v) => !v)}
             className={`flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm transition-colors w-full ${
